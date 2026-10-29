@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# claude-nano-session [auto] — nouvelle session tmux Claude · Nano (nom unique) ; sans argument : menu des modèles NanoGPT.
+n="claude-nano-$(date +%H%M%S)"
+if [[ "${1:-}" == auto ]]; then exec tmux new-session -s "$n-auto" "$HOME/jarvis/bin/claude-nano -m auto"; fi
+exec tmux new-session -s "$n" "$HOME/jarvis/bin/claude-nano"

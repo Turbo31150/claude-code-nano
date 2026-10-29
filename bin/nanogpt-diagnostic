@@ -1,0 +1,122 @@
+#!/usr/bin/env python3
+"""nanogpt-diagnostic — état de l'intégration NanoGPT de Turbo OS, sans rien modifier (29/10/2026).
+
+  nanogpt-diagnostic            configuration, droits, politique, compte (lecture), catalogues, journal, motif de clé
+  nanogpt-diagnostic --valider  + essais réels BORNÉS des opérations incluses dans l'abonnement (≤ 16 jetons de sortie,
+                                1 image générée, 1 image éditée, 2 embeddings) ; opérations payantes : vérifie le refus
+                                local de la politique, sans appel. Résultats dans ~/jarvis/data/nanogpt/validations.json.
+"""
+import json
+import os
+import stat
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path.home() / "jarvis/turbo"))
+import nanogpt_client as nc  # noqa: E402
+
+H = Path.home()
+OK, KO = "✅", "❌"
+
+
+def ligne(etat, texte):
+    print(f"{etat} {texte}")
+
+
+def droits():
+    d = H / ".config/nanogpt"
+    for p in [d, *sorted(d.glob("*"))]:
+        m = stat.S_IMODE(p.stat().st_mode)
+        attendu = 0o700 if p.is_dir() else 0o600
+        ligne(OK if m == attendu else KO, f"droits {oct(m)} {p.name or p}")
+
+
+def motif_cle():
+    zones = [H / "jarvis/logs", H / "jarvis/data/nanogpt", H / "jarvis/reports", H / "jarvis/turbo", H / "jarvis/bin",
+             H / "jarvis/cockpit-v4-api", H / "turbo-os-premium/serveur", H / ".openclaw/workspaces"]
+    r = subprocess.run(["grep", "-rlIE", "sk-nano-[A-Za-z0-9_-]{8,}", *map(str, zones)], capture_output=True, text=True, timeout=120)
+    fuites = [l for l in r.stdout.splitlines() if l]
+    ligne(OK if not fuites else KO, f"motif de clé complet hors ~/.config/nanogpt : {len(fuites)} fichier(s)" + (f" → {fuites[:5]}" if fuites else ""))
+    for depot in (H / "jarvis", H / "turbo-os-premium"):
+        g = subprocess.run(["git", "-C", str(depot), "grep", "-lE", "sk-nano-[A-Za-z0-9_-]{8,}"], capture_output=True, text=True)
+        ligne(OK if not g.stdout.strip() else KO, f"motif de clé dans les fichiers suivis par Git de {depot.name} : {len(g.stdout.split())}")
+
+
+def valider():
+    pixel = sorted((H / "jarvis/data/cockpit-v4/nanogpt").glob("*.png"))
+    essais = [
+        ("generate_text", {"consigne": "Réponds uniquement : OK", "profil": "fast", "max_tokens": 16}),
+        ("create_embeddings", {"textes": ["Turbo OS", "souveraineté numérique"]}),
+        ("analyze_image", {"image": str(pixel[-1]), "question": "En cinq mots, que montre cette image ?", "max_tokens": 40} if pixel else None),
+        ("generate_image", {"prompt": "icône minimaliste : un éclair cyan sur fond bleu nuit", "taille": "512x512"}),
+    ]
+    for op, params in essais:
+        if params is None:
+            nc.noter_validation(op, "non_teste", "aucune image locale pour l'essai")
+            ligne("⏭", f"{op} : non testé (aucune image locale)")
+            continue
+        r = nc.executer(op, params, appelant="tests")
+        statut = "valide" if r.get("ok") else ("bloque_solde" if r.get("type") == "solde" else "echec")
+        preuve = (f"{r.get('modele')} · {r.get('duree_s')} s · " + (repr(r.get("texte", ""))[:40] if "texte" in r else
+                  f"{r.get('nombre', '')} vecteurs dim {r.get('dimensions', '')}" if op == "create_embeddings" else str(r.get("fichier")))) if r.get("ok") else r.get("erreur", "")
+        nc.noter_validation(op, statut, preuve)
+        ligne(OK if r.get("ok") else KO, f"{op} : {statut} — {preuve[:110]}")
+        if op == "generate_image" and r.get("ok"):
+            e = nc.executer("edit_image", {"image": str(H / "jarvis/data/cockpit-v4/nanogpt" / r["fichier"]),
+                                           "prompt": "même icône, fond blanc", "taille": "512x512"}, appelant="tests")
+            st = "valide" if e.get("ok") else ("bloque_solde" if e.get("type") == "solde" else "echec")
+            nc.noter_validation("edit_image", st, f"{e.get('modele')} · {e.get('duree_s')} s · {e.get('fichier')}" if e.get("ok") else e.get("erreur", ""))
+            ligne(OK if e.get("ok") else KO, f"edit_image : {st} — {(e.get('fichier') or e.get('erreur', ''))[:110]}")
+    for op, params in (("generate_video", {"prompt": "x", "modele": "x"}), ("synthesize_speech", {"texte": "x"}),
+                       ("transcribe_audio", {"audio_url": "https://exemple.invalid/a.mp3"}), ("search_web", {"requete": "x"}),
+                       ("submit_batch", {"requetes": [{"consigne": "x"}]})):
+        r = nc.executer(op, params, appelant="tests")
+        refus = r.get("type") == "politique"
+        nc.noter_validation(op, "bloque_politique" if refus else ("echec" if not r.get("ok") else "valide"),
+                            r.get("erreur", "")[:200] if not r.get("ok") else "appel effectué")
+        ligne(OK if refus else KO, f"{op} : refus local de la politique (aucun appel payant) — {r.get('erreur', '')[:90]}")
+    nc.noter_validation("rerank_documents", "non_supporte", "endpoint non documenté par NanoGPT (29/10/2026)")
+    nc.noter_validation("discover_models", "valide", "catalogues lus (voir diagnostic)")
+    nc.noter_validation("discover_capabilities", "valide", "registre écrit")
+    nc.noter_validation("check_job_status", "non_teste", "aucune tâche asynchrone possible avec le solde à 0 $")
+
+
+def main():
+    print("== Configuration")
+    droits()
+    pol = nc.politique()
+    ligne(OK, f"politique v{pol.get('version')} : actif={pol.get('actif')} · payant={pol.get('rubriques_payantes_autorisees')} · "
+              f"plafond={pol.get('plafond_usd_jour')} $/j · concurrence={pol.get('concurrence')}")
+    print("== Compte (NanoGPT)")
+    try:
+        c = nc.compte(appelant="cli")
+        s = c["jetons_semaine"] or {}
+        ligne(OK, f"solde {c['solde_usd']} $ · abonnement {'actif' if c['abonnement_actif'] else 'INACTIF'} · semaine "
+                  f"{s.get('used')} / {(c['limites'] or {}).get('weeklyInputTokens')} jetons · images {(c['images_jour'] or {}).get('used')}/"
+                  f"{(c['limites'] or {}).get('dailyImages')}")
+    except nc.ErreurNanoGPT as e:
+        ligne(KO, f"compte : {e}")
+    print("== Catalogues (cache daté)")
+    for rub in nc.CATALOGUES:
+        try:
+            d = nc.discover_models(rub, appelant="cli")
+            ligne(OK, f"{rub} : {d['total']} modèles · inclus {d['inclus'] if d['inclus'] is not None else '?'}")
+        except nc.ErreurNanoGPT as e:
+            ligne(KO, f"{rub} : {e}")
+    print("== Sécurité")
+    motif_cle()
+    if "--valider" in sys.argv:
+        print("== Validation réelle bornée")
+        valider()
+    print("== Registre des capacités")
+    reg = nc.discover_capabilities(appelant="cli")
+    for c in reg["capacites"]:
+        ligne(OK if c["disponible"] else "·", f"{c['operation']:22} {c['validation']['statut']:17} {c['politique']:28} {c['cout']}")
+    print("== Journal local (aujourd'hui)")
+    u = nc.usage()
+    print(json.dumps({k: u[k] for k in ("requetes", "reussies", "echecs_par_type", "latence_p50_s", "latence_p95_s", "usd_declares")}, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

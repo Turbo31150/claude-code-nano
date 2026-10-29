@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# nanogpt-mcp — lanceur du serveur MCP officiel NanoGPT (@nanogpt/mcp, MIT, Nano-GPT-com/nanogpt-mcp) pour Claude Code
+# (29/10/2026, « branche … à toi »). La clé est lue ici dans le fichier d'identifiants NanoGPT et passée en variable
+# d'environnement au seul processus MCP : elle n'est jamais écrite dans ~/.claude.json. Version figée (chaîne d'approvisionnement).
+# NanoGPT = cloud ; les outils d'extraction de réseaux sociaux (profils de personnes) : seulement sur ordre de Franck.
+set -euo pipefail
+if ! python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("actif") else 1)' "$HOME/jarvis/config/nanogpt-politique.json" 2>/dev/null; then
+  echo "NanoGPT coupé par la politique (nanogpt-interrupteur on pour rétablir)" >&2; exit 3
+fi
+CREDS="$HOME/.config/nanogpt/credentials.env"
+NANOGPT_API_KEY=$(sed -n 's/^NANOGPT_API_KEY=//p' "$CREDS")
+export NANOGPT_API_KEY
+export NANOGPT_DEFAULT_MODEL="${NANOGPT_DEFAULT_MODEL:-moonshotai/kimi-k2.6}"   # inclus dans l'abonnement (solde 0 $ le 29/10)
+export NANOGPT_TIMEOUT_MS="${NANOGPT_TIMEOUT_MS:-120000}"
+exec npx -y @nanogpt/mcp@1.5.1

@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+"""nanogpt-openclaw-sync — donne à OpenClaw (fournisseur « nanogpt ») TOUS les modèles NanoGPT, avec la MÊME méthode que
+claude-nano, /model et l'assistant du cockpit : liste_modeles() du connecteur ~/jarvis/turbo/nanogpt_client.py (profils,
+abonnement avec / sans outils, puis 💲 payants ; modèles interdits par la politique exclus). 29/10/2026.
+
+  nanogpt-openclaw-sync            validation (--dry-run d'OpenClaw), copie d'openclaw.json, puis écriture (rechargement à chaud)
+  nanogpt-openclaw-sync --essai    validation seulement, rien n'est écrit
+
+Les agents nano-* gardent leur modèle ; tous les modèles deviennent sélectionnables (/model d'OpenClaw, --model nanogpt/<id>).
+Coût déclaré à OpenClaw : 0 pour l'abonnement, prix NanoGPT ($/M jetons) pour les payants.
+"""
+import json, os, shutil, subprocess, sys, time
+from pathlib import Path
+
+sys.path.insert(0, os.path.expanduser("~/jarvis/turbo"))
+import nanogpt_client as nc  # noqa: E402
+
+H = Path.home()
+CONF = H / ".openclaw/openclaw.json"
+ESSAI = "--essai" in sys.argv
+
+
+def prix(m, cle):
+    if m["inclus"]:
+        return 0
+    try:
+        return round(float((m.get("prix") or {}).get(cle) or 0), 6)
+    except (TypeError, ValueError):
+        return 0
+
+
+modeles = []
+for m in nc.liste_modeles(appelant="openclaw"):
+    caps = m["capacites"]
+    modeles.append({"id": m["id"], "name": f"NanoGPT · {m['nom'][:40]} — {m['libelle']}"[:160],
+                    "reasoning": "reasoning" in caps, "input": ["text", "image"] if "vision" in caps else ["text"],
+                    "cost": {"input": prix(m, "prompt"), "output": prix(m, "completion"), "cacheRead": 0, "cacheWrite": 0},
+                    "contextWindow": int(m.get("contexte") or 128000),
+                    "maxTokens": int(min(m.get("sortie_max") or 16384, 65536)), "api": "openai-completions"})
+lot = Path(f"/tmp/nanogpt-openclaw-lot-{os.getpid()}.json")
+lot.write_text(json.dumps([{"path": "models.providers.nanogpt.models", "value": modeles}], ensure_ascii=False))
+os.chmod(lot, 0o600)
+try:
+    essai = subprocess.run(["openclaw", "config", "set", "--batch-file", str(lot), "--dry-run"], capture_output=True, text=True, timeout=180)
+    print(f"validation ({len(modeles)} modèles) : code {essai.returncode} — {(essai.stdout + essai.stderr).strip().splitlines()[-1][:160] if (essai.stdout + essai.stderr).strip() else ''}")
+    if essai.returncode != 0 or ESSAI:
+        sys.exit(essai.returncode)
+    copie = CONF.with_name(f"openclaw.json.avant-nanogpt-sync-{time.strftime('%Y%m%d-%H%M%S')}")
+    shutil.copy2(CONF, copie)
+    r = subprocess.run(["openclaw", "config", "set", "--batch-file", str(lot)], capture_output=True, text=True, timeout=180)
+    print(f"écriture : code {r.returncode} — {(r.stdout + r.stderr).strip().splitlines()[-1][:160] if (r.stdout + r.stderr).strip() else ''} ; copie : {copie.name}")
+    sys.exit(r.returncode)
+finally:
+    lot.unlink(missing_ok=True)

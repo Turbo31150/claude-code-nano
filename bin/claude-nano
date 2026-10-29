@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# claude-nano — Claude Code branché sur NanoGPT (29/10/2026, Franck : « une version terminal Claude Code branchée sur nano
+# avec icône bureau et barre des tâches jolie », puis « choisir les modèles de nano et le mettre en auto »).
+# Même principe que claude-m6 : variables d'environnement propres à CE processus, ~/.claude/settings.json n'est PAS modifié
+# (la session Claude Code habituelle reste sur le compte Anthropic). NanoGPT expose l'API Messages d'Anthropic.
+# Solde NanoGPT à 0 $ le 29/10 : seuls les modèles de l'abonnement répondent (Claude ou GPT par NanoGPT = HTTP 402).
+#
+#   claude-nano                 menu au lancement (terminal) : Auto, sélection, ou liste complète de l'abonnement
+#   claude-nano -m auto         Auto : NanoGPT choisit à chaque requête parmi les modèles de l'abonnement (auto-model-basic)
+#   claude-nano -m <modèle> …   modèle précis (ex. moonshotai/kimi-k2.7-code)
+#   claude-nano -p "consigne"   une réponse et sortie (sans menu ; modèle Auto sauf -m)
+#   claude-nano -P <profil>     profil de ~/jarvis/config/nanogpt-politique.json : coding, reasoning, fast, research, vision, auto
+#   claude-nano --modeles      liste TOUS les modèles texte NanoGPT (abonnement puis payants, catalogue du jour) et sort
+# Dans Claude Code, /model liste TOUS les modèles (profils, abonnement, puis 💲 payants) — méthode commune du connecteur.
+#   claude-nano --leger …       MCP nanogpt SEUL (--strict-mcp-config) : moins de connexions ; PAS moins de jetons (mesuré 29/10 : 35 672 contre 30 718) ; Gardien conservé
+# Durcissement 29/10 : aucun modèle anthropic/* ou claude-* (mission « NanoGPT full backend ») ; trafic non essentiel coupé ;
+# Remote Control coupé pour ce processus (il passe par claude.ai) ; bannière sur la sortie d'erreur (JSON de -p propre).
+# Dans Claude Code : /model opus = DeepSeek V4 Pro, /model sonnet = le modèle choisi, /model haiku = DeepSeek V4.1 Flash,
+# ou /model <identifiant NanoGPT> pour n'importe quel modèle de l'abonnement.
+# NanoGPT = cloud : rien de secret, ni journal, ni donnée de tiers dans les consignes.
+set -euo pipefail
+CREDS="$HOME/.config/nanogpt/credentials.env"
+if ! python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("actif") else 1)' "$HOME/jarvis/config/nanogpt-politique.json" 2>/dev/null; then
+  echo "NanoGPT coupé par la politique (nanogpt-interrupteur on pour rétablir)" >&2; exit 3
+fi
+AGENT="$HOME/jarvis/bin/nanogpt-agent"
+POLITIQUE="$HOME/jarvis/config/nanogpt-politique.json"
+MODELE="${CLAUDE_NANO_MODELE:-}"
+LEGER=0
+
+modeles_abonnement() {   # « id<TAB>libellé » : TOUS les modèles texte NanoGPT (catalogue daté du connecteur, rien en dur)
+  python3 - "$POLITIQUE" <<'PY'                    # ordre : profils, abonnement (outils, puis sans), payants au solde (idem)
+import os, sys
+sys.path.insert(0, os.path.expanduser("~/jarvis/turbo"))
+import nanogpt_client as nc          # méthode commune (connecteur) : profils, abonnement, puis 💲 payants
+for m in nc.liste_modeles(appelant="claude-nano"):
+    print(f"{m['id']}\t{m['nom'][:34]} — {m['libelle']}")
+PY
+}
+
+cache_slash_model() {   # /model de Claude Code = modèles de l'ABONNEMENT (29/10/2026, Claude Code 2.1.312) :
+  # la découverte « gateway » de Claude Code ne garde que les id contenant claude|anthropic ; son AFFICHAGE lit en revanche
+  # le cache gateway-models.json sans filtre si baseUrl = ANTHROPIC_BASE_URL. On l'écrit ici (catalogue du jour du connecteur)
+  # et on rend la récupération filtrée inopérante (délai 1 ms) pour qu'elle ne l'écrase pas. Sessions « claude » Anthropic : non concernées.
+  python3 - "$POLITIQUE" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/cache/gateway-models.json" "$ANTHROPIC_BASE_URL" <<'PY'
+import json, os, sys, time
+sys.path.insert(0, os.path.expanduser("~/jarvis/turbo"))
+import nanogpt_client as nc          # méthode commune (connecteur) : profils, abonnement, puis 💲 payants
+cible, base = sys.argv[2], sys.argv[3]
+modeles = [{"id": m["id"], "display_name": m["nom"][:40], "description": m["libelle"][:100]} for m in nc.liste_modeles(appelant="claude-nano")]
+os.makedirs(os.path.dirname(cible), exist_ok=True)
+tmp = cible + ".tmp"
+with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
+    json.dump({"baseUrl": base, "fetchedAt": int(time.time() * 1000), "models": modeles}, f, ensure_ascii=False)
+os.replace(tmp, cible)
+PY
+}
+
+menu() {
+  local args=(auto "★ Auto — NanoGPT choisit à chaque requête parmi l'abonnement") n=0 id lib choix
+  while IFS=$'\t' read -r id lib; do args+=("$id" "$lib"); n=$((n + 1)); done < <(modeles_abonnement)
+  choix=$(whiptail --title "Claude · Nano — $n modèles NanoGPT" --default-item auto --menu \
+    "Catalogue du jour : abonnement d'abord, puis 💲 payants (exigent du solde, sinon HTTP 402). ∥ = outils en parallèle · ⚠ SANS outils = ne peut pas agir. Échap = Auto." \
+    32 120 22 "${args[@]}" 3>&1 1>&2 2>&3) || choix=auto
+  echo "$choix"
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -m) MODELE="$2"; shift 2 ;;
+    -P) MODELE=$(python3 -c 'import json,sys; print((json.load(open(sys.argv[1]))["profils"].get(sys.argv[2]) or ""))' "$POLITIQUE" "$2")
+        [[ -n "$MODELE" ]] || { echo "claude-nano : profil inconnu « $2 » (voir $POLITIQUE)" >&2; exit 2; }; shift 2 ;;
+    --leger) LEGER=1; shift ;;
+    --modeles) modeles_abonnement | column -t -s $'\t'; exit 0 ;;
+    *) break ;;
+  esac
+done
+
+if [[ -z "$MODELE" ]]; then
+  if [[ -t 0 && -t 1 && " $* " != *" -p "* && " $* " != *" --print "* ]]; then MODELE=$(menu); else MODELE=auto; fi
+fi
+[[ "$MODELE" == auto ]] && MODELE="auto-model-basic"   # sélecteur NanoGPT limité à l'abonnement
+if [[ "${MODELE,,}" == anthropic/* || "${MODELE,,}" == claude* ]]; then
+  echo "claude-nano : modèle Claude refusé (« $MODELE ») — backend NanoGPT hors modèles Claude (mission du 29/10)" >&2; exit 2
+fi
+
+ANTHROPIC_AUTH_TOKEN=$(sed -n 's/^NANOGPT_API_KEY=//p' "$CREDS")
+export ANTHROPIC_AUTH_TOKEN
+export ANTHROPIC_BASE_URL="https://nano-gpt.com/api"   # Claude Code ajoute /v1/messages ; « …/api/v1 » donnait /api/v1/v1/messages → 307 à chaque requête (mesuré 29/10)
+unset ANTHROPIC_API_KEY            # aucune clé Anthropic résiduelle ne doit détourner l'authentification
+export ANTHROPIC_MODEL="$MODELE"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="${CLAUDE_NANO_FORT:-deepseek/deepseek-v4-pro}"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="$MODELE"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="${CLAUDE_NANO_RAPIDE:-deepseek/deepseek-v4.1-flash-1017}"
+export CLAUDE_CODE_ATTRIBUTION_HEADER=0 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+# Plafond de sortie ALIGNÉ sur le timeout. Le global ~/.claude/settings.json impose 64 000 tok de sortie, soit ~37 min
+# à 29 tok/s (et davantage sur un modèle lent) : avec l'ancien timeout de 600 s, la connexion SSE était coupée EN
+# PLEIN MILIEU de la réponse.
+# PREUVE du 29/10 : un export du shell est INEFFICACE, le bloc « env » de ~/.claude/settings.json l'écrase
+# (env CLAUDE_CODE_MAX_OUTPUT_TOKENS=12345 claude -p → le processus enfant lit 64000) ; seul le flag --settings,
+# de priorité supérieure, gagne (essai : 4321 rendu tel quel). Plafond + timeout sont donc posés DANS l'argument
+# --settings plus bas ; l'export reste un filet.
+# DÉBITS MESURÉS 29/10 (max_tokens=200, horodatage réel) : auto-model-basic 61 tok/s · deepseek-v4.1-flash 55 ·
+# kimi-k2.6 40 · kimi-k2.7-code 29. La lenteur perçue (« 341 s pour 150 lignes ») vient du PREFILL du gros prompt
+# Turbo OS (CLAUDE.md + index mémoire + centaines de skills + MCP), pas de la génération.
+# Dimensionnement sur le plus lent mesuré (29 tok/s) avec marge ×5 : 8 000 tok = 276 s à 29 tok/s, et le timeout de
+# 1 500 s couvre encore un modèle à 5,3 tok/s. Plus lent encore → stop=max_tokens (fin propre), tour suivant.
+SORTIE_MAX="${CLAUDE_NANO_MAX_SORTIE:-8000}"
+export API_TIMEOUT_MS=1500000 CLAUDE_CODE_MAX_OUTPUT_TOKENS="$SORTIE_MAX"
+# Modèles inconnus de Claude Code : fenêtre explicite. Auto peut tomber sur un modèle de 128 k → marge plus serrée.
+if [[ "$MODELE" == auto-model-basic ]]; then CTX=120000; else CTX=200000; fi
+export CLAUDE_CODE_MAX_CONTEXT_TOKENS="${CLAUDE_NANO_CONTEXTE:-$CTX}"
+# /model : liste des modèles de l'abonnement (voir cache_slash_model ; échec silencieux = /model sans la liste, rien d'autre)
+export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1 CLAUDE_CODE_GATEWAY_MODEL_DISCOVERY_TIMEOUT_MS=1
+cache_slash_model 2>/dev/null || true
+export CLAUDE_REMOTE_CONTROL_SESSION_NAME_PREFIX="nano"
+printf '\033[38;5;209m✳ Claude · Nano\033[0m — modèle : \033[1m%s\033[0m  (/model opus · sonnet · haiku · <id NanoGPT>)\n' "$MODELE" >&2
+# env dans --settings : seule voie qui écrase ~/.claude/settings.json (preuve ci-dessus)
+OPTIONS=(--model "$MODELE" --settings "{\"remoteControlAtStartup\": false, \"env\": {\"CLAUDE_CODE_MAX_OUTPUT_TOKENS\": \"$SORTIE_MAX\", \"API_TIMEOUT_MS\": \"1500000\"}}")
+if [[ $LEGER == 1 ]]; then
+  OPTIONS+=(--strict-mcp-config --mcp-config "{\"mcpServers\":{\"nanogpt\":{\"command\":\"$HOME/jarvis/bin/nanogpt-mcp\"}}}")
+fi
+# /model (29/10) : « Entrée » écrit le modèle choisi comme défaut de ~/.claude/settings.json, réglage PARTAGÉ avec la commande
+# « claude » (Anthropic) ; « s » = cette session seulement. Vérification en LECTURE seule (le fichier porte aussi les hooks du
+# Gardien : jamais réécrit par programme) : alerte si un identifiant NanoGPT y est resté.
+DEFAUT=$(python3 -c 'import json,os,sys; print(json.load(open(sys.argv[1])).get("model") or "")' "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json" 2>/dev/null || true)
+if [[ "$DEFAUT" == */* ]]; then
+  printf '\033[33m⚠ Le modèle par défaut de ~/.claude/settings.json est « %s » (NanoGPT) : la commande « claude » (Anthropic) échouera.\n  Corriger avec /model dans une session « claude » normale.\033[0m\n' "$DEFAUT" >&2
+fi
+printf '\033[2m/model : profils et modèles de l'"'"'abonnement — touche « s » = cette session seulement (Entrée change aussi le défaut de « claude »)\033[0m\n' >&2
+exec "$HOME/.local/bin/claude" "${OPTIONS[@]}" "$@"

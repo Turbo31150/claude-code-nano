@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "maj": "2026-10-29",
+  "note": "Politique NanoGPT lue par turbo/nanogpt_client.py et bin/claude-nano. actif=false coupe tout. Aucun secret ici : la clé reste dans ~/.config/nanogpt (600).",
+  "actif": true,
+  "concurrence": 4,
+  "delai_s": 120,
+  "reprises_max": 3,
+  "attente_retry_after_max_s": 60,
+  "jetons_sortie_max": 4000,
+  "taille_entree_max_caracteres": 60000,
+  "rubriques_payantes_autorisees": false,
+  "plafond_usd_jour": 0.0,
+  "modeles_interdits_prefixes": [
+    "anthropic/",
+    "claude-",
+    "anthropic-"
+  ],
+  "profils": {
+    "coding": "moonshotai/kimi-k2.7-code",
+    "reasoning": "deepseek/deepseek-v4-pro",
+    "fast": "deepseek/deepseek-v4.1-flash-1017",
+    "research": "deepseek/deepseek-v4-flash-latest",
+    "vision": "moonshotai/kimi-k2.6",
+    "auto": "auto-model-basic",
+    "image": "z-image-turbo",
+    "edition_image": "qwen-image",
+    "embeddings": "BAAI/bge-m3",
+    "rerank": "nvidia/Nemotron-3.5-Rerank-8B-BF16",
+    "voix": "Kokoro-82m",
+    "transcription": "Wizper",
+    "video": null,
+    "premium": "auto-model-premium"
+  },
+  "appelants": [
+    "cockpit",
+    "assistant",
+    "turbo-auto",
+    "claude-nano",
+    "cli",
+    "tests",
+    "openclaw"
+  ]
+}

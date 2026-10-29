@@ -1,0 +1,209 @@
+{
+  "_note": "Extraits de ~/.openclaw/openclaw.json (Turbo OS, 29/10/2026) — à fusionner avec « openclaw config set <chemin> '<json>' ». Aucune clé ici : apiKey est une référence vers le fournisseur de secret « nanogpt-cle » (fichier ~/.config/nanogpt/api.cle, 600, contenant la clé seule).",
+  "models.providers.nanogpt": {
+    "baseUrl": "https://api.nano-gpt.com/api/v1",
+    "api": "openai-completions",
+    "apiKey": {
+      "source": "file",
+      "provider": "nanogpt-cle",
+      "id": "value"
+    },
+    "models": [
+      {
+        "id": "moonshotai/kimi-k2.6",
+        "name": "NanoGPT · Kimi K2.6 (abonnement, 5 s)",
+        "reasoning": true,
+        "input": [
+          "text"
+        ],
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "contextWindow": 262144,
+        "maxTokens": 16384,
+        "api": "openai-completions"
+      },
+      {
+        "id": "minimax/minimax-m3.1-flash",
+        "name": "NanoGPT · MiniMax M3.1 Flash (abonnement)",
+        "reasoning": true,
+        "input": [
+          "text",
+          "image"
+        ],
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "contextWindow": 1000000,
+        "maxTokens": 32768,
+        "api": "openai-completions"
+      },
+      {
+        "id": "deepseek/deepseek-v4-flash-latest",
+        "name": "NanoGPT · DeepSeek V4 Flash (abonnement)",
+        "reasoning": false,
+        "input": [
+          "text",
+          "image"
+        ],
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "contextWindow": 1048576,
+        "maxTokens": 32768,
+        "api": "openai-completions"
+      },
+      {
+        "id": "qwen/qwen3.6-35b-a3b",
+        "name": "NanoGPT · Qwen3.6 35B-A3B (abonnement)",
+        "reasoning": true,
+        "input": [
+          "text"
+        ],
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "contextWindow": 262144,
+        "maxTokens": 16384,
+        "api": "openai-completions"
+      },
+      {
+        "id": "z-ai/glm-5.3",
+        "name": "NanoGPT · GLM 5.3",
+        "reasoning": true,
+        "input": [
+          "text"
+        ],
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "contextWindow": 200000,
+        "maxTokens": 16384,
+        "api": "openai-completions"
+      },
+      {
+        "id": "moonshotai/kimi-k2.7-code",
+        "name": "NanoGPT · Kimi K2.7 Code (abonnement)",
+        "reasoning": true,
+        "input": [
+          "text"
+        ],
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "contextWindow": 262144,
+        "maxTokens": 16384,
+        "api": "openai-completions"
+      },
+      {
+        "id": "auto-model-basic",
+        "name": "NanoGPT · Auto (choisit dans l'abonnement)",
+        "reasoning": true,
+        "input": [
+          "text"
+        ],
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "contextWindow": 128000,
+        "maxTokens": 16384,
+        "api": "openai-completions"
+      }
+    ]
+  },
+  "secrets.providers.nanogpt-cle": {
+    "source": "file",
+    "path": "~/.config/nanogpt/api.cle",
+    "mode": "singleValue"
+  },
+  "mcp.servers.nanogpt": {
+    "command": "~/jarvis/bin/nanogpt-mcp",
+    "args": [],
+    "transport": "stdio",
+    "connectionTimeoutMs": 30000,
+    "requestTimeoutMs": 180000
+  },
+  "agents.entries (nano-*)": {
+    "nano-redacteur": {
+      "name": "nano-redacteur",
+      "workspace": "~/.openclaw/workspaces/nano-redacteur",
+      "agentDir": "~/.openclaw/agents/nano-redacteur/agent",
+      "identity": {
+        "name": "Rédacteur NanoGPT"
+      },
+      "model": "nanogpt/moonshotai/kimi-k2.6",
+      "skills": [
+        "turbo-nanogpt"
+      ]
+    },
+    "nano-codeur": {
+      "name": "nano-codeur",
+      "workspace": "~/.openclaw/workspaces/nano-codeur",
+      "agentDir": "~/.openclaw/agents/nano-codeur/agent",
+      "identity": {
+        "name": "Codeur NanoGPT"
+      },
+      "model": "nanogpt/moonshotai/kimi-k2.7-code",
+      "skills": [
+        "turbo-nanogpt"
+      ]
+    },
+    "nano-media": {
+      "name": "nano-media",
+      "workspace": "~/.openclaw/workspaces/nano-media",
+      "agentDir": "~/.openclaw/agents/nano-media/agent",
+      "identity": {
+        "name": "Studio média NanoGPT"
+      },
+      "model": "nanogpt/moonshotai/kimi-k2.6",
+      "skills": [
+        "turbo-nanogpt"
+      ]
+    },
+    "nano-veille": {
+      "name": "nano-veille",
+      "workspace": "~/.openclaw/workspaces/nano-veille",
+      "agentDir": "~/.openclaw/agents/nano-veille/agent",
+      "identity": {
+        "name": "Veille NanoGPT"
+      },
+      "model": "nanogpt/deepseek/deepseek-v4-flash-latest",
+      "skills": [
+        "turbo-nanogpt"
+      ]
+    },
+    "nano-auto": {
+      "name": "nano-auto",
+      "workspace": "~/.openclaw/workspaces/nano-auto",
+      "agentDir": "~/.openclaw/agents/nano-auto/agent",
+      "identity": {
+        "name": "Généraliste NanoGPT (auto)"
+      },
+      "model": "nanogpt/auto-model-basic",
+      "skills": [
+        "turbo-nanogpt"
+      ]
+    }
+  }
+}

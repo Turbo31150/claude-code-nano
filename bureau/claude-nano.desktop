@@ -1,0 +1,19 @@
+[Desktop Entry]
+Type=Application
+Name=Claude · Nano
+Comment=Claude Code branché sur NanoGPT — menu de modèles (Auto en tête), abonnement ; sort chez NanoGPT — session tmux persistante « claude-nano »
+Exec=gnome-terminal --title="Claude · Nano" --geometry=140x42 -- @HOME@/jarvis/bin/claude-nano-session
+Icon=@HOME@/.local/share/icons/claude-nano.svg
+Terminal=false
+Categories=Development;
+Keywords=claude;nano;nanogpt;kimi;terminal;
+StartupNotify=true
+Actions=nouvelle;auto;
+
+[Desktop Action nouvelle]
+Name=Nouvelle session — choisir le modèle NanoGPT
+Exec=gnome-terminal --title="Claude · Nano" --geometry=140x42 -- @HOME@/jarvis/bin/claude-nano-session
+
+[Desktop Action auto]
+Name=Nouvelle session en Auto (NanoGPT choisit)
+Exec=gnome-terminal --title="Claude · Nano · Auto" --geometry=140x42 -- @HOME@/jarvis/bin/claude-nano-session auto

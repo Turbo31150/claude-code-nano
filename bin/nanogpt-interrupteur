@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# nanogpt-interrupteur — coupe ou rétablit NanoGPT dans tout Turbo OS en une commande (29/10/2026).
+#   nanogpt-interrupteur etat | off | on
+# Agit sur « actif » de ~/jarvis/config/nanogpt-politique.json (copie datée avant écriture), lu par : connecteur
+# ~/jarvis/turbo/nanogpt_client.py (cockpit, assistant : outils nanogpt_*, turbo-auto), claude-nano, nanogpt-mcp,
+# moteur NanoGPT de l'assistant :8650. NON couvert : fournisseur nanogpt d'OpenClaw (voir le runbook).
+set -euo pipefail
+P="$HOME/jarvis/config/nanogpt-politique.json"
+lire() { python3 -c 'import json,sys; print("actif" if json.load(open(sys.argv[1])).get("actif") else "coupé")' "$P"; }
+case "${1:-etat}" in
+  etat) echo "NanoGPT : $(lire)" ;;
+  on|off)
+    cp -p "$P" "$P.avant-interrupteur-$(date +%Y%m%d-%H%M%S)"
+    python3 - "$P" "$1" <<'PY'
+import json, sys
+p, v = sys.argv[1], sys.argv[2] == "on"
+d = json.load(open(p)); d["actif"] = v
+open(p, "w").write(json.dumps(d, ensure_ascii=False, indent=2) + "\n")
+PY
+    echo "NanoGPT : $(lire)" ;;
+  *) echo "usage : nanogpt-interrupteur etat | off | on" >&2; exit 2 ;;
+esac

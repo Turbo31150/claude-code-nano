@@ -1,0 +1,4 @@
+# Modèle du fichier d'identifiants NanoGPT — à recopier (avec un éditeur) dans ~/.config/nanogpt/credentials.env, droits 600.
+# Pour OpenClaw, mettre aussi la clé seule (sans « NANOGPT_API_KEY= ») dans ~/.config/nanogpt/api.cle, droits 600.
+NANOGPT_API_KEY=<ta clé NanoGPT>
+NANOGPT_BASE_URL=https://api.nano-gpt.com/api/v1

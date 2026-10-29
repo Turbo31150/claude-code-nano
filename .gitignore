@@ -1,0 +1,8 @@
+# Identifiants : jamais dans le dépôt
+credentials.env
+*.cle
+*.env
+!conf/identifiants-nanogpt.exemple
+__pycache__/
+*.pyc
+.pytest_cache/
